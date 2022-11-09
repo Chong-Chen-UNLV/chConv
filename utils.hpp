@@ -1,0 +1,11 @@
+
+class tensor(){
+
+
+
+}
+
+
+class Opretor(){
+
+}
