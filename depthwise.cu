@@ -54,12 +54,27 @@ __global__ void depthwise_kernel_backward_weight(float* outputDelta,
 	__shared__ volatile float outputS[];
 	while(){
 		outputS[] = outputDelta[];
-		while(){	
-			weightS[] += outputS[]*inputCache[] ;				
-			__
+		warpInRange[tid] = ;
+		__syncthreads();
+		for(int8_t i = 0; i < 16; ++i){	
+			if(warpInRange[i>>4 + (i - (i>>4)<<4)<<2]){
+				weightS[] += outputS[]*inputCache[] ;				
+			}
+			__syncthreads();
 		}
-		
 	}	
-
+	__syncthreads();
+	weightDeltaCache[] = ;
 
 }
+
+__global__ void depthwise_kernel_backward_weight_fusion(float* weightDeltaCache,
+		const int blockSize,
+		const int weightSize){
+	//for example, if we have 11*11 conv window, and the depth is 128
+ 	//we call this kernel with configuration <<11*(128/32), 11*32>> 
+	for(int i = 0; i < blockSize; ++i){
+		weightDeltaCache[tid] += weightDeltaCache[tid + weightSize];
+	}
+}
+
