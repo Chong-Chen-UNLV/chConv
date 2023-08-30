@@ -29,17 +29,20 @@ __global__ void depthwise_kernel_foward(float* inputTensor,
 	
 
 }
-
+//since it is backward, output delta is used to calculate the input delta
 __global__ void depthwise_kernel_backward_all(float* outputDelta,
 		float* weightTensor,
+		float* outputDelta 
 		float* weightDeltaCache,
-		float* inputTensor,
 		float* inputDelta,
 		const int8_t width)
 {
-	
+	extern __shared__ volatile float weightS[];
+	//load weight
+	if(tid < weightSize)
+		weightS[tid] = weightTensor[tid];	
 	while(){
-
+		outputDelta	
 	}	
 
 }
@@ -68,6 +71,7 @@ __global__ void depthwise_kernel_backward_weight(float* outputDelta,
 
 }
 
+//fusion means add the weight backward gradient together
 __global__ void depthwise_kernel_backward_weight_fusion(float* weightDeltaCache,
 		const int blockSize,
 		const int weightSize){
