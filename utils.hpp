@@ -1,11 +1,3 @@
 
-class tensor(){
-
-
-
-}
-
-
-class Opretor(){
-
-}
+#ifndef CHPOOL_H
+#define CHPOOL_H

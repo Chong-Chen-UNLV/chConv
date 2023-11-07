@@ -75,7 +75,20 @@ void chConv1Backward(const int weightSize,
 }
 
 
+void chPool_forward_C_interface(float* inputTensor_d,
+		const float* weight_d,
+		float* outputTensor_d,
+		const int width,
+		const int height,
+		const int inCh,
+		const int outCh) {
 
+	uint32_t widthB = ceil(((float)width)/widthA);	
+	uint32_t heightB = ceil(((float)height)/heightA);	
+    dim3 blocksize = dim3(withB, heightB, 1); 
+	//check bias
 
+    chPool_forward_kernel<<<grid, block>>>(inputTensor_d, weight_d, outputTensor_d, width, height, inCh, outCh);
+}
 
 

@@ -2,11 +2,11 @@ from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 setup(
-    name="add2",
+    name="chPool",
     include_dirs=["include"],
     ext_modules=[
         CUDAExtension(
-            "add2",
+            "chPool",
             ["pytorch/add2_ops.cpp", "kernel/add2_kernel.cu"],
         )
     ],
