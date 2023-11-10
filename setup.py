@@ -7,7 +7,7 @@ setup(
     ext_modules=[
         CUDAExtension(
             "chPool",
-            ["pytorch/add2_ops.cpp", "kernel/add2_kernel.cu"],
+            ["pytorch/chPool_ops.cpp", "kernel/chPool_kernel.cu"],
         )
     ],
     cmdclass={
