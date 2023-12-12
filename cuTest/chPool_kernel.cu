@@ -5,13 +5,16 @@
 //with 32 input channel and 64 output channel (1x1 convolution). 
 //while 128 (input channel) leads to 4 iteration on input and 
 //each iteration will leads to 4 iteration on output. 
+
+#include "chPool.hpp"
 __global__ void chPool_forward_kernel(float* inputTensor,
                             const float* weight,
+							float* outputTensor;
 							const int tensorHeight,
 							const int tensorWidth,
 							const int inCh
-							const int outCh,
-                            float* outputTensor)
+							const int outCh)
+                            
 {
 	//divide to multiple 32 to 64
 	//we assume the whole area is working like this:
@@ -46,7 +49,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 			for(uint16_t outIt = 0; outIt < outCh; outIt+=64){
 
 				weightCache[tid] = weight[weightBias + tid]; 
-				weightCache[tid + threadSize.x] = weight[weightBias + tid + weightCacheSize/2]; 
+				weightCache[tid + threadSize.x] = weight[weightBias + tid + weightCacheSize/2];//weight cache size is 1024 
 
 				//0-31 in->0-32 out
 				for (int offset = 0; \
@@ -74,5 +77,22 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	}
 }
 
+void chPool_forward_C_interface(float* input_d,
+		const float* weight_d,
+		float* output_d,
+		const int width,
+		const int height,
+		const int inCh,
+		const int outCh) {
 
+	uint32_t widthB = ceil(((float)width)/widthA);	
+	uint32_t heightB = ceil(((float)height)/heightA);	
+	uint32_t layer = outCh/outChPerBlock; 
+    dim3 blocksize = dim3(widthB, heightB, layer); 
+	dim3 threadSize = dim3(widthA, heightA, warpSize);	
+	//check bias
+	for(int inIt = 0; inIt < inCh; ++warpSize){
+    	chPool_forward_kernel<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh);
+	}
+}
 
