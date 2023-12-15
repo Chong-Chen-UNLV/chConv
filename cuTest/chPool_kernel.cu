@@ -25,6 +25,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	//different blocks on the output channels 
 	__shared__ int16_t J_block;
 	__shared__ int16_t I_block;
+	__shared__ int16_t layer;
 
 	int16_t I_warp;
 	int16_t J_warp;
@@ -33,47 +34,43 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	if(threadIdx.x == 0){
 		J_block = blockIdx.x*widthA;
 		I_block = blockIdx.y*heightA;
+		layer = blockIdx.z;
 	}
 	I_warp = I_block + warpIdx/widthA;
 	J_warp = J_block + warpIdx%widthA;
 
-	int pixelInOffset = (I_warp*imageWidth + J_warp)*inCh;
+	int pixelInOffset = (I_warp*imageWidth + J_warp)*inCh + imageHeight*imageWidth*layer;
 	int initOutOffset = (I_warp*imageWidth + J_warp)*outCh;
 	int pixelOutOffset = initOutOffset;
 	const int offsetStep = imageHeight*imageWidth*warpSize;
-	int waightBias = 0;
+	int waightBias = layer*outCh;
 
 	if(I_warp < imageHeight && J_warp < imageWidth){
-		for(uint16_t inIt = 0; inIt < inCh; inIt+=32){
-			pixelOutOffset = initOffset;
-			for(uint16_t outIt = 0; outIt < outCh; outIt+=64){
+		pixelOutOffset = initOffset;
+		weightCache[tid] = weight[weightBias + tid]; 
+		for(uint16_t outIt = 0; outIt < outCh; outIt+=64){
 
-				weightCache[tid] = weight[weightBias + tid]; 
-				weightCache[tid + threadSize.x] = weight[weightBias + tid + weightCacheSize/2];//weight cache size is 1024 
-
-				//0-31 in->0-32 out
-				for (int offset = 0; \
-						offset < warpSize; offset += 1) {
-					//offset<<4 means offset*32
-					outVal += weightCache[laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
-				}
-				out[pixelOutOffset+ laneId] = outVal;	
-				pixelOutOffset += offsetStep;
-				//0-31 in->32-64 out
-				for (int offset = 0; \
-						offset < warpSize; offset += 1) {
-					//offset<<4 means offset*32
-					outVal += weightCache[threadSize.x + laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
-				}
-
-				out[pixelOutOffset + laneId + warpSize] = outVal;
-
-				weightBias += 32*64;
-				pixelOutOffset += offsetStep;
+			//0-31 in->0-32 out
+			for (int offset = 0; \
+					offset < warpSize; offset += 1) {
+				//offset<<4 means offset*32
+				outVal += weightCache[laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
+			}
+			out[pixelOutOffset+ laneId] = outVal;	
+			pixelOutOffset += offsetStep;
+			//0-31 in->32-64 out
+			for (int offset = 0; \
+					offset < warpSize; offset += 1) {
+				//offset<<4 means offset*32
+				outVal += weightCache[threadSize.x + laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
 			}
 
-			pixelInOffset += offsetStep;
+			out[pixelOutOffset + laneId + warpSize] = outVal;
+
+			weightBias += 32*64;
+			pixelOutOffset += offsetStep;
 		}
+
 	}
 }
 
@@ -87,9 +84,9 @@ void chPool_forward_C_interface(float* input_d,
 
 	uint32_t widthB = ceil(((float)width)/widthA);	
 	uint32_t heightB = ceil(((float)height)/heightA);	
-	uint32_t layer = outCh/outChPerBlock; 
+	uint32_t layer = outCh/outChPerBlock;//calculate 64 output layer each block 
     dim3 blocksize = dim3(widthB, heightB, layer); 
-	dim3 threadSize = dim3(widthA, heightA, warpSize);	
+	uint32_t threadSize =2048;//test if it works on compiling
 	//check bias
 	for(int inIt = 0; inIt < inCh; ++warpSize){
     	chPool_forward_kernel<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh);
