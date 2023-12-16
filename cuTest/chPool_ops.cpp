@@ -92,13 +92,15 @@ static void chPoolCPU(dummyTensor inputTensor,
 	for(int row = 0; row < height; ++row){
 		for(int col = 0; col < width; ++col){
 			//1x1 weight
+			int idxBias = (row*width+col)*warpSize;
 			for(int inIt = 0; inIt < inCh; inIt+=32){
 				for(int outIt = 0; outIt < outCh; outIt+=32){
-					weightBias = inIt*outCh*warpSize;
-					for(int i = 0; i < 32; ++i){
-						for(int j = 0; j < 32; ++j){
-							int idxBias = (row*width+col)*warpSize;
-							outputTensor.data[idxBias +outIt+(i+j)%warpSize]+=inputTensor.data[idxBias+inIt+i]*weight.data[weightBias+j*32+i];
+					weightBias = inIt*outCh*warpSize+outIt*32;
+					for(int j = 0; j < 32; ++j){
+						for(int outI = 0; outI < 32; ++outI){
+							//for example, j = 30, for outI = 1, updating output 1 with weight start at 30*32, 
+							//the input related to this weight should be input[31] in a virtual input array with size 32 
+							outputTensor.data[idxBias +outIt*32+ outI]+=inputTensor.data[idxBias+inIt*32+(j+outI)%32]*weight.data[weightBias+intI*32+outI];
 						}
 					}
 				}

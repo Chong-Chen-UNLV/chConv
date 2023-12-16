@@ -43,11 +43,12 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	int initOutOffset = (I_warp*imageWidth + J_warp)*outCh;
 	int pixelOutOffset = initOutOffset;
 	const int offsetStep = imageHeight*imageWidth*warpSize;
-	int waightBias = layer*outCh;
+	uint16_t weightBias = layer*outCh;
 
 	if(I_warp < imageHeight && J_warp < imageWidth){
 		pixelOutOffset = initOffset;
 		weightCache[tid] = weight[weightBias + tid]; 
+		val = ;
 		for(uint16_t outIt = 0; outIt < outCh; outIt+=64){
 
 			//0-31 in->0-32 out
@@ -62,7 +63,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 			for (int offset = 0; \
 					offset < warpSize; offset += 1) {
 				//offset<<4 means offset*32
-				outVal += weightCache[threadSize.x + laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
+				outVal += weightCache[1024 + laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
 			}
 
 			out[pixelOutOffset + laneId + warpSize] = outVal;
@@ -87,7 +88,7 @@ void chPool_forward_C_interface(float* input_d,
 	uint32_t layer = outCh/outChPerBlock;//calculate 64 output layer each block 
     dim3 blocksize = dim3(widthB, heightB, layer); 
 	uint32_t threadSize =2048;//test if it works on compiling
-	//check bias
+	//every kernel call will finish caclulation of all output channels related to 32 input channels. 
 	for(int inIt = 0; inIt < inCh; ++warpSize){
     	chPool_forward_kernel<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh);
 	}
