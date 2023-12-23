@@ -7,12 +7,15 @@
 //each iteration will leads to 4 iteration on output. 
 
 #include "chPool.hpp"
+
+#define FULL_MASK 0xffffffff
+
 __global__ void chPool_forward_kernel(float* inputTensor,
                             const float* weight,
-							float* outputTensor;
+							float* outputTensor,
 							const int tensorHeight,
 							const int tensorWidth,
-							const int inCh
+							const int inCh,
 							const int outCh)
                             
 {
@@ -26,11 +29,13 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	__shared__ int16_t J_block;
 	__shared__ int16_t I_block;
 	__shared__ int16_t layer;
+	__shared__ float weightCache[2048];
 
 	int16_t I_warp;
 	int16_t J_warp;
-	int16_t warpLane = threadIdx.x - ((threadIdx.x>>5)<<5);
-	int8_t warpIdx = threadIdx.x>>5;
+	int16_t tid = threadIdx.x;
+	int16_t warpLane = tid - ((tid>>5)<<5);
+	int8_t warpIdx = tid>>5;
 	if(threadIdx.x == 0){
 		J_block = blockIdx.x*widthA;
 		I_block = blockIdx.y*heightA;
@@ -39,34 +44,35 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	I_warp = I_block + warpIdx/widthA;
 	J_warp = J_block + warpIdx%widthA;
 
-	int pixelInOffset = (I_warp*imageWidth + J_warp)*inCh + imageHeight*imageWidth*layer;
-	int initOutOffset = (I_warp*imageWidth + J_warp)*outCh;
+	int pixelInOffset = (I_warp*tensorWidth + J_warp)*inCh + tensorHeight*tensorWidth*layer;
+	int initOutOffset = (I_warp*tensorHeight + J_warp)*outCh;
 	int pixelOutOffset = initOutOffset;
-	const int offsetStep = imageHeight*imageWidth*warpSize;
+	const int offsetStep = tensorHeight*tensorWidth*warpSize;
 	uint16_t weightBias = layer*outCh;
+	float val, outVal;
 
-	if(I_warp < imageHeight && J_warp < imageWidth){
-		pixelOutOffset = initOffset;
+	if(I_warp < tensorHeight && J_warp < tensorWidth){
+		pixelOutOffset = initOutOffset;
 		weightCache[tid] = weight[weightBias + tid]; 
-		val = ;
+		val = inputTensor[pixelInOffset+warpLane];
 		for(uint16_t outIt = 0; outIt < outCh; outIt+=64){
 
 			//0-31 in->0-32 out
 			for (int offset = 0; \
 					offset < warpSize; offset += 1) {
 				//offset<<4 means offset*32
-				outVal += weightCache[laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
+				outVal += weightCache[warpLane + offset<<4] * __shfl_sync(FULLMSK, val, warpLane + offset);
 			}
-			out[pixelOutOffset+ laneId] = outVal;	
+			out[pixelOutOffset+ warpLane] = outVal;	
 			pixelOutOffset += offsetStep;
 			//0-31 in->32-64 out
 			for (int offset = 0; \
 					offset < warpSize; offset += 1) {
 				//offset<<4 means offset*32
-				outVal += weightCache[1024 + laneId + offset<<4] * __shfl_sync(FULLMSK, val, lanId + offset);
+				outVal += weightCache[1024 + warpLane + offset<<4] * __shfl_sync(FULLMSK, val, warpLane + offset);
 			}
 
-			out[pixelOutOffset + laneId + warpSize] = outVal;
+			out[pixelOutOffset + warpLane+ warpSize] = outVal;
 
 			weightBias += 32*64;
 			pixelOutOffset += offsetStep;

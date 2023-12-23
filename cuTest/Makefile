@@ -10,7 +10,7 @@ CU_INC=-I $(CUDA_HOME)/include
 CUDA_LIB =-L $(CUDA_HOME)/lib64 -lcudart 
 
 CPPFLAGS= -g -O3 -lm
-CUFLAGS = -O3 -arch=sm_86 
+CUFLAGS = -O3 -arch=sm_86 -std=c++11
 CPPFILES = chPool_ops.cpp    
 CUFILES = $(wildcard *.cu)
 OBJECTS = $(CPPFILES:.cpp=.o)

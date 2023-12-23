@@ -93,14 +93,16 @@ static void chPoolCPU(dummyTensor inputTensor,
 		for(int col = 0; col < width; ++col){
 			//1x1 weight
 			int idxBias = (row*width+col)*warpSize;
-			for(int inIt = 0; inIt < inCh; inIt+=32){
-				for(int outIt = 0; outIt < outCh; outIt+=32){
-					weightBias = inIt*outCh*warpSize+outIt*32;
-					for(int j = 0; j < 32; ++j){
-						for(int outI = 0; outI < 32; ++outI){
+			for(int inIt = 0; inIt < inCh; inIt+=warpSize){
+				for(int outIt = 0; outIt < outCh; outIt+=warpSize){
+					//every outIt "step-in" not only meaning 1 input channel to 32 out put channel 
+					//but 32 input channel to 32 out put channel, so wee need outIt*warpSize
+					weightBias = inIt*outCh+outIt*warpSize;
+					for(int j = 0; j < warpSize; ++j){
+						for(int outI = 0; outI < warpSize; ++outI){
 							//for example, j = 30, for outI = 1, updating output 1 with weight start at 30*32, 
 							//the input related to this weight should be input[31] in a virtual input array with size 32 
-							outputTensor.data[idxBias +outIt*32+ outI]+=inputTensor.data[idxBias+inIt*32+(j+outI)%32]*weight.data[weightBias+intI*32+outI];
+							outputTensor.data[idxBias +outIt*warpSize + outI]+=inputTensor.data[idxBias+inIt*32+(j+outI)%32]*weight.data[weightBias+j*32+outI];
 						}
 					}
 				}
@@ -156,9 +158,9 @@ static void tensorCompare(dummyTensor input1, dummyTensor input2){
 		std::cout<<"meta data difference"<<std::endl;
 		return;
 	}
-	size = input1.height*input1.width*input1.ch;
+	int size = input1.height*input1.width*input1.ch;
 	
-	compare_data(input1.data, input2.data);
+	compare_data(input1.data, input2.data, 0.01, size);
 
 }	
 
@@ -166,16 +168,16 @@ int main(){
 
 	dummyTensor inputTensor(120, 120, 256);
 	dummyTensor outputTensor(120, 120, 512, false);
-	dummyTensor weight(256, 512, 1, true);
+	dummyTensor weightTensor(256, 512, 1, true);
 
-	dummyTensor_d inputTensor_d(inputTensor);
-	dummyTensor_d weightTensor_d(weightTensor);
+	dummyTensor_d inputTensor_d(&inputTensor);
+	dummyTensor_d weightTensor_d(&weightTensor);
 	dummyTensor_d outputTensor_d(120, 120, 512);
 
 	chPoolCPU(inputTensor, outputTensor, weightTensor);
-	chPoolGPU(inputTensor_d, outputTensor_d, ,weightTensor_d);
+	chPoolGPU(inputTensor_d, outputTensor_d, weightTensor_d);
 
-	dummyTensor outputTensor2(outputTensor_d);
+	dummyTensor outputTensor2(&outputTensor_d);
 
 	tensorCompare(outputTensor2, outputTensor);
 
