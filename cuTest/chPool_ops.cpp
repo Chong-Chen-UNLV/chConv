@@ -166,6 +166,9 @@ static void tensorCompare(dummyTensor input1, dummyTensor input2){
 
 int main(){
 
+	int devId=0;
+	cudaSetDevice(devId);
+
 	dummyTensor inputTensor(120, 120, 256);
 	dummyTensor outputTensor(120, 120, 512, false);
 	dummyTensor weightTensor(256, 512, 1, true);

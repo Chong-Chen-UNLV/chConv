@@ -8,7 +8,7 @@
 
 #include "chPool.hpp"
 
-#define FULL_MASK 0xffffffff
+#define FULLMSK 0xffffffff
 
 __global__ void chPool_forward_kernel(float* inputTensor,
                             const float* weight,
@@ -63,7 +63,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 				//offset<<4 means offset*32
 				outVal += weightCache[warpLane + offset<<4] * __shfl_sync(FULLMSK, val, warpLane + offset);
 			}
-			out[pixelOutOffset+ warpLane] = outVal;	
+			outputTensor[pixelOutOffset+ warpLane] = outVal;	
 			pixelOutOffset += offsetStep;
 			//0-31 in->32-64 out
 			for (int offset = 0; \
@@ -72,7 +72,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 				outVal += weightCache[1024 + warpLane + offset<<4] * __shfl_sync(FULLMSK, val, warpLane + offset);
 			}
 
-			out[pixelOutOffset + warpLane+ warpSize] = outVal;
+			outputTensor[pixelOutOffset + warpLane+ warpSize] = outVal;
 
 			weightBias += 32*64;
 			pixelOutOffset += offsetStep;
@@ -95,7 +95,7 @@ void chPool_forward_C_interface(float* input_d,
     dim3 blocksize = dim3(widthB, heightB, layer); 
 	uint32_t threadSize =2048;//test if it works on compiling
 	//every kernel call will finish caclulation of all output channels related to 32 input channels. 
-	for(int inIt = 0; inIt < inCh; ++warpSize){
+	for(int inIt = 0; inIt < inCh; inIt+=warpSize){
     	chPool_forward_kernel<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh);
 	}
 }
