@@ -19,6 +19,7 @@ class dummyTensor {
 			size = height*width*ch;
 			data = new float[size];
 			if(random == true){
+				sleep(1);
 				srand(time(NULL));
 				for(int i = 0; i < size; ++i) data[i] = (float) (rand()%2000-1000)/1000;			
 			} else {
@@ -31,7 +32,7 @@ class dummyTensor {
 
 		~dummyTensor(){
 			if (height&&width&&ch){
-				delete data;	
+				delete[] data;	
 			}
 
 		}
@@ -56,13 +57,17 @@ class dummyTensor_d {
 
 		}
 		//create a device tensor with no specified initial value
-		dummyTensor_d(const int height_in, const int  width_in, const int ch_in){
+		dummyTensor_d(const int height_in, const int  width_in, const int ch_in)
+			: height{height_in}, width{width_in}, ch{ch_in}
+		{
 			size = height_in*width_in*ch_in;	
 			cudaMalloc((void **) &(data_d), size*sizeof(float));
 		}
 
 		~dummyTensor_d(){
 			if(size > 0){
+				if(data_d == NULL)
+					std::cout<<"error before free"<<std::endl;
 				cudaFree(data_d);
 			}
 
@@ -81,9 +86,9 @@ dummyTensor::dummyTensor(dummyTensor_d* deviceTensor){
 	}
 }
 
-static void chPoolCPU(dummyTensor inputTensor,
-		dummyTensor weight,
-		dummyTensor outputTensor){
+static void chPoolCPU(dummyTensor& inputTensor,
+		dummyTensor& weight,
+		dummyTensor& outputTensor){
 		const int width = inputTensor.width;
 		const int height = inputTensor.height;
 		const int inCh = inputTensor.ch;
@@ -92,7 +97,8 @@ static void chPoolCPU(dummyTensor inputTensor,
 	for(int row = 0; row < height; ++row){
 		for(int col = 0; col < width; ++col){
 			//1x1 weight
-			int idxBias = (row*width+col)*warpSize;
+			int idxBiasIn = (row*width+col)*inCh;
+			int idxBiasOut = (row*width+col)*outCh;
 			for(int inIt = 0; inIt < inCh; inIt+=warpSize){
 				for(int outIt = 0; outIt < outCh; outIt+=warpSize){
 					//every outIt "step-in" not only meaning 1 input channel to 32 out put channel 
@@ -102,7 +108,10 @@ static void chPoolCPU(dummyTensor inputTensor,
 						for(int outI = 0; outI < warpSize; ++outI){
 							//for example, j = 30, for outI = 1, updating output 1 with weight start at 30*32, 
 							//the input related to this weight should be input[31] in a virtual input array with size 32 
-							outputTensor.data[idxBias +outIt*warpSize + outI]+=inputTensor.data[idxBias+inIt*32+(j+outI)%32]*weight.data[weightBias+j*32+outI];
+							if(idxBiasOut +outIt + outI >= outputTensor.size || idxBiasIn+inIt+(j+outI)%32 >= inputTensor.size || weightBias+j*32+outI >= weight.size)
+								std::cout<<"out of boundary"<<std::endl;
+							outputTensor.data[idxBiasOut +outIt + outI]+=inputTensor.data[idxBiasIn+inIt+(j+outI)%32]*weight.data[weightBias+j*32+outI];
+
 						}
 					}
 				}
@@ -113,9 +122,9 @@ static void chPoolCPU(dummyTensor inputTensor,
 
 }
 
-static void chPoolGPU(dummyTensor_d inputTensor_d,
-		dummyTensor_d weight_d,
-		dummyTensor_d outputTensor_d){
+static void chPoolGPU(dummyTensor_d& inputTensor_d,
+		dummyTensor_d& weight_d,
+		dummyTensor_d& outputTensor_d){
 		const int width = inputTensor_d.width;
 		const int height = inputTensor_d.height;
 		const int inCh = inputTensor_d.ch;
@@ -137,7 +146,7 @@ static void compare_data(float* yResult, float* y, const float threshold, const 
                 double ampl = fmin(fabs(y[i]), fabs(yResult[i]));
                 if (d > ampl*threshold)
                 {
-					if(k < 100){
+					if(k < 10){
 						std::cout<<"large difference at  " << i << "real data  "<<y[i] <<"vs result  " <<  yResult[i] <<std::endl;
 						k++;
 					}
@@ -152,7 +161,7 @@ static void compare_data(float* yResult, float* y, const float threshold, const 
 
 
 
-static void tensorCompare(dummyTensor input1, dummyTensor input2){
+static void tensorCompare(dummyTensor& input1, dummyTensor& input2){
 	
 	if(input2.height != input1.height | input2.width != input1.width | input2.ch!= input1.ch){
 		std::cout<<"meta data difference"<<std::endl;
@@ -166,19 +175,20 @@ static void tensorCompare(dummyTensor input1, dummyTensor input2){
 
 int main(){
 
-	int devId=0;
-	cudaSetDevice(devId);
+	//int devId=0;
+	//cudaSetDevice(devId);
 
-	dummyTensor inputTensor(120, 120, 256);
-	dummyTensor outputTensor(120, 120, 512, false);
-	dummyTensor weightTensor(256, 512, 1, true);
+	dummyTensor inputTensor(4, 4, 32, true);
+	dummyTensor outputTensor(4, 4, 32, false);
+	dummyTensor weightTensor(32, 32, 1, true);
 
 	dummyTensor_d inputTensor_d(&inputTensor);
 	dummyTensor_d weightTensor_d(&weightTensor);
-	dummyTensor_d outputTensor_d(120, 120, 512);
+	dummyTensor_d outputTensor_d(4, 4, 32);
 
-	chPoolCPU(inputTensor, outputTensor, weightTensor);
-	chPoolGPU(inputTensor_d, outputTensor_d, weightTensor_d);
+	chPoolCPU(inputTensor, weightTensor, outputTensor);
+	std::cout<<"cpu finished "<<std::endl;
+	chPoolGPU(inputTensor_d, weightTensor_d, outputTensor_d);
 
 	dummyTensor outputTensor2(&outputTensor_d);
 
