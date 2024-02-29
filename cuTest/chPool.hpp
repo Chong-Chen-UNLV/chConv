@@ -17,7 +17,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
-constexpr unsigned int outChPerBlock = 32;
+constexpr unsigned int outChPerBlock = 64;
 constexpr int warpSize = 32;
 constexpr unsigned int weightCacheSize = outChPerBlock*warpSize; //weightCacheSize = 1024
 constexpr unsigned int widthA = 4; 

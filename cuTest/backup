@@ -1,0 +1,36 @@
+//let's try loop unroll
+			
+			outVal += weightCache[warpLane] * __shfl_sync(FULLMSK, val, warpLane);
+			outVal += weightCache[warpLane + 32] * __shfl_sync(FULLMSK, val, warpLane + 1);
+			outVal += weightCache[warpLane + 64] * __shfl_sync(FULLMSK, val, warpLane + 2);
+			outVal += weightCache[warpLane + 96] * __shfl_sync(FULLMSK, val, warpLane + 3);
+			outVal += weightCache[warpLane + 128] * __shfl_sync(FULLMSK, val, warpLane + 4);
+			outVal += weightCache[warpLane + 160] * __shfl_sync(FULLMSK, val, warpLane + 5);
+			outVal += weightCache[warpLane + 192] * __shfl_sync(FULLMSK, val, warpLane + 6);
+			outVal += weightCache[warpLane + 224] * __shfl_sync(FULLMSK, val, warpLane + 7);
+			outVal += weightCache[warpLane + 256] * __shfl_sync(FULLMSK, val, warpLane + 8);
+			outVal += weightCache[warpLane + 288] * __shfl_sync(FULLMSK, val, warpLane + 9);
+			outVal += weightCache[warpLane + 320] * __shfl_sync(FULLMSK, val, warpLane + 10);
+			outVal += weightCache[warpLane + 352] * __shfl_sync(FULLMSK, val, warpLane + 11);
+			outVal += weightCache[warpLane + 384] * __shfl_sync(FULLMSK, val, warpLane + 12);
+			outVal += weightCache[warpLane + 416] * __shfl_sync(FULLMSK, val, warpLane + 13);
+			outVal += weightCache[warpLane + 448] * __shfl_sync(FULLMSK, val, warpLane + 14);
+			outVal += weightCache[warpLane + 480] * __shfl_sync(FULLMSK, val, warpLane + 15);
+			outVal += weightCache[warpLane + 512] * __shfl_sync(FULLMSK, val, warpLane + 16);
+			outVal += weightCache[warpLane + 544] * __shfl_sync(FULLMSK, val, warpLane + 17);
+			outVal += weightCache[warpLane + 576] * __shfl_sync(FULLMSK, val, warpLane + 18);
+			outVal += weightCache[warpLane + 608] * __shfl_sync(FULLMSK, val, warpLane + 19);
+			outVal += weightCache[warpLane + 640] * __shfl_sync(FULLMSK, val, warpLane + 20);
+			outVal += weightCache[warpLane + 672] * __shfl_sync(FULLMSK, val, warpLane + 21);
+			outVal += weightCache[warpLane + 704] * __shfl_sync(FULLMSK, val, warpLane + 22);
+			outVal += weightCache[warpLane + 736] * __shfl_sync(FULLMSK, val, warpLane + 23);
+			outVal += weightCache[warpLane + 768] * __shfl_sync(FULLMSK, val, warpLane + 24);
+			outVal += weightCache[warpLane + 800] * __shfl_sync(FULLMSK, val, warpLane + 25);
+			outVal += weightCache[warpLane + 832] * __shfl_sync(FULLMSK, val, warpLane + 26);
+			outVal += weightCache[warpLane + 864] * __shfl_sync(FULLMSK, val, warpLane + 27);
+			outVal += weightCache[warpLane + 896] * __shfl_sync(FULLMSK, val, warpLane + 28);
+			outVal += weightCache[warpLane + 928] * __shfl_sync(FULLMSK, val, warpLane + 29);
+			outVal += weightCache[warpLane + 960] * __shfl_sync(FULLMSK, val, warpLane + 30);
+			outVal += weightCache[warpLane + 992] * __shfl_sync(FULLMSK, val, warpLane + 31);
+
+

@@ -3,6 +3,7 @@
 #include <string>
 #include <iterator>
 #include <time.h>
+#include <chrono>
 #include "chPool.hpp"
 
 class dummyTensor_d;
@@ -129,8 +130,32 @@ static void chPoolGPU(dummyTensor_d& inputTensor_d,
 		const int height = inputTensor_d.height;
 		const int inCh = inputTensor_d.ch;
 		const int outCh = outputTensor_d.ch;
+	
+		for(int i = 0; i < 100; ++i){
+			chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
+			cudaDeviceSynchronize();
+		}
 
-	chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
+		cudaEvent_t start, stop;
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+		cudaEventRecord(start);
+		//auto start = std::chrono::high_resolution_clock::now();
+		for(int i = 0; i < 10; ++i){
+			chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
+		}
+		//cudaDeviceSynchronize();
+
+		//auto elapsed = std::chrono::high_resolution_clock::now() - start;
+		//long long microseconds = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+		//std::cout<<"step time is "<<microseconds<<" us"<<std::endl;
+
+		cudaEventRecord(stop);
+		cudaEventSynchronize(stop);
+		float milliseconds = 0;
+		cudaEventElapsedTime(&milliseconds, start, stop);
+		std::cout<<"step time is "<<milliseconds<<" ms"<<std::endl;
+
 
 
 }
@@ -169,7 +194,7 @@ static void tensorCompare(dummyTensor& input1, dummyTensor& input2){
 	}
 	int size = input1.height*input1.width*input1.ch;
 	
-	compare_data(input1.data, input2.data, 0.01, size);
+	compare_data(input1.data, input2.data, 0.005, size);
 
 }	
 
@@ -177,14 +202,19 @@ int main(){
 
 	//int devId=0;
 	//cudaSetDevice(devId);
+	
+	const int height = 32; 
+	const int width = 32;
+	const int inCh = 1536;
+	const int outCh = 1536;
 
-	dummyTensor inputTensor(4, 4, 32, true);
-	dummyTensor outputTensor(4, 4, 32, false);
-	dummyTensor weightTensor(32, 32, 1, true);
+	dummyTensor inputTensor(width, height, inCh, true);
+	dummyTensor outputTensor(width, height, outCh, false);
+	dummyTensor weightTensor(inCh, outCh, 1, true);
 
 	dummyTensor_d inputTensor_d(&inputTensor);
 	dummyTensor_d weightTensor_d(&weightTensor);
-	dummyTensor_d outputTensor_d(4, 4, 32);
+	dummyTensor_d outputTensor_d(width, height, outCh);
 
 	chPoolCPU(inputTensor, weightTensor, outputTensor);
 	std::cout<<"cpu finished "<<std::endl;
