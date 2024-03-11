@@ -26,23 +26,20 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	//each block dealing with 4x4 area for specified 64 output
 	//channel, this method will avoid write conflict between
 	//different blocks on the output channels 
-	__shared__ int J_block;
-	__shared__ int I_block;
-	__shared__ int layer;
+	uint8_t J_block;
+	uint8_t I_block;
+	uint8_t layer;
 	__shared__ float weightCache[2048];
 
-	int I_warp;
-	int J_warp;
+	uint8_t I_warp;
+	uint8_t J_warp;
 	int tid = threadIdx.x;
 	int warpLane = tid - ((tid>>5)<<5);
 	int warpIdx = tid>>5;
-	if(threadIdx.x == 0){
-		J_block = blockIdx.x*widthA;
-		I_block = blockIdx.y*heightA;
-		layer = blockIdx.z;
-	}
+	J_block = blockIdx.x*widthA;
+	I_block = blockIdx.y*heightA;
+	layer = blockIdx.z;
 
-	__syncthreads();
 	I_warp = I_block + warpIdx/widthA;
 	J_warp = J_block + warpIdx%widthA;
 	//if(tid == 511)
