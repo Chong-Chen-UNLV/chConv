@@ -200,13 +200,13 @@ static void tensorCompare(dummyTensor& input1, dummyTensor& input2){
 
 int main(){
 
-	//int devId=0;
-	//cudaSetDevice(devId);
+	int devId=0;
+	cudaSetDevice(devId);
 	
-	const int height = 64; 
-	const int width = 64;
-	const int inCh = 2048;
-	const int outCh = 2048;
+	const int height = 32; 
+	const int width = 32;
+	const int inCh = 768;
+	const int outCh = 768;
 
 	dummyTensor inputTensor(width, height, inCh, true);
 	dummyTensor outputTensor(width, height, outCh, false);
