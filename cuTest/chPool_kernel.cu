@@ -16,7 +16,8 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 							const int tensorHeight,
 							const int tensorWidth,
 							const int inCh,
-							const int outCh)
+							const int outCh,
+							const int J_stride)
                             
 {
 	//divide to multiple 32 to 32 
@@ -46,7 +47,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	//if there are 512 input and 512 output, l0=0:0, l8=0:64
 	
 	uint16_t inChBias = outChPerBlock*(layer/(inCh/inChPerBlock));	
-	uint16_t outChBias = inChPerBlock*(layer%(inch/inChPerBlock));	
+	uint16_t outChBias = inChPerBlock*(layer%(inCh/inChPerBlock));	
 	
 	I_warp = I_block + warpIdx/widthA;
 	J_warp = J_block + warpIdx%widthA;
@@ -67,7 +68,7 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 	weightCache[tid + 512] = weight[weightBias + tid + 512]; 
 	weightCache[tid + 1024] = weight[weightBias + tid + 1024]; 
 	weightCache[tid + 1536] = weight[weightBias + tid + 1536]; 
-	weigthBias += warpSize*outCh;
+	weightBias += warpSize*outCh;
 	weightCache[tid + 2048] = weight[weightBias + tid]; 
 	weightCache[tid + 512 + 2048] = weight[weightBias + tid + 512]; 
 	weightCache[tid + 1024 + 2048] = weight[weightBias + tid + 1024]; 
@@ -100,6 +101,8 @@ __global__ void chPool_forward_kernel(float* inputTensor,
 		atomicAdd(&outputTensor[pixelOutOffset+ warpLane], outVal);
 		atomicAdd(&outputTensor[pixelOutOffset+ warpLane + 32], outVal11);
 		J_warp += widthA;
+		outVal = 0;
+		outVal11 = 0;
 
 	}
 	
@@ -116,7 +119,7 @@ static void calBlocksize(const int inCh, const int outCh,
 	int chConst = (inCh/64)*(outCh/64);
 	int hParts, wParts = 1;
 	hParts = ceil(((float) height)/heightA);
-	while(hParts*(wParts + 1) < SM){
+	while(chConst*hParts*(wParts + 1) < SM && width/wParts > widthA){
 		wParts += 1;
 	}
 
@@ -137,15 +140,15 @@ void chPool_forward_C_interface(float* input_d,
 	//define the number of blocks, closest to the number of SMs. 
 	//constant of channel number:
 
-	int rowConst = height/heightA;	
 	int widthB, heightB, layer;
 	calBlocksize(inCh, outCh, width, height, &widthB, &heightB, &layer);	
 
 	uint8_t J_stride = ceil(((float) width)/widthB);
 
+	//printf("J_stride is %d, widthB is %d, heightB is %d, layer is %d\n", J_stride, widthB, heightB, layer);
     dim3 blocksize = dim3(widthB, heightB, layer); 
 	uint32_t threadSize =512;//try 4x4x32 per each block
 	//every kernel call will finish caclulation of all output channels related to 32 input channels. 
-	chPool_forward_kernel<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh);
+	chPool_forward_kernel<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh, J_stride);
 }
 

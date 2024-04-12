@@ -144,7 +144,7 @@ static void chPoolGPU(dummyTensor_d& inputTensor_d,
 		for(int i = 0; i < 10; ++i){
 			chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
 		}
-		//cudaDeviceSynchronize();
+		cudaDeviceSynchronize();
 
 		//auto elapsed = std::chrono::high_resolution_clock::now() - start;
 		//long long microseconds = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
@@ -203,10 +203,10 @@ int main(){
 	int devId=0;
 	cudaSetDevice(devId);
 	
-	const int height = 32; 
-	const int width = 32;
-	const int inCh = 768;
-	const int outCh = 768;
+	const int height = 28; 
+	const int width = 28;
+	const int inCh = 256;
+	const int outCh = 256;
 
 	dummyTensor inputTensor(width, height, inCh, true);
 	dummyTensor outputTensor(width, height, outCh, false);
