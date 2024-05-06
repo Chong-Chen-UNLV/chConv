@@ -131,7 +131,7 @@ static void chPoolGPU(dummyTensor_d& inputTensor_d,
 		const int inCh = inputTensor_d.ch;
 		const int outCh = outputTensor_d.ch;
 	
-		for(int i = 0; i < 100; ++i){
+		for(int i = 0; i < 20; ++i){
 			chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
 			cudaDeviceSynchronize();
 		}
@@ -141,8 +141,9 @@ static void chPoolGPU(dummyTensor_d& inputTensor_d,
 		cudaEventCreate(&stop);
 		cudaEventRecord(start);
 		//auto start = std::chrono::high_resolution_clock::now();
+
 		for(int i = 0; i < 10; ++i){
-			chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
+		  chPool_forward_C_interface(inputTensor_d.data_d, weight_d.data_d, outputTensor_d.data_d, width, height, inCh, outCh);
 		}
 		cudaDeviceSynchronize();
 
@@ -205,8 +206,8 @@ int main(){
 	
 	const int height = 28; 
 	const int width = 28;
-	const int inCh = 256;
-	const int outCh = 256;
+	const int inCh = 768;
+	const int outCh = 768;
 
 	dummyTensor inputTensor(width, height, inCh, true);
 	dummyTensor outputTensor(width, height, outCh, false);
@@ -217,7 +218,7 @@ int main(){
 	dummyTensor_d outputTensor_d(width, height, outCh);
 
 	chPoolCPU(inputTensor, weightTensor, outputTensor);
-	std::cout<<"cpu finished "<<std::endl;
+	std::cout<<"cpu finished with windowSize:  "<<width<<"  inch: "<<inCh<<"  outCh: "<<outCh<<std::endl;
 	chPoolGPU(inputTensor_d, weightTensor_d, outputTensor_d);
 
 	dummyTensor outputTensor2(&outputTensor_d);
