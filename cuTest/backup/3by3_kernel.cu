@@ -16,7 +16,7 @@ __global__ void setZero(float* inputTensor, const int size){
 	if(id < size) inputTensor[id] = 0;
 }
 
-__global__ void chPool_forward_kernel_gen(float* inputTensor,
+__global__ void 3by3_forward_kernel(float* inputTensor,
                             const float* weight,
 							float* outputTensor,
 							const int tensorHeight,
@@ -113,110 +113,6 @@ __global__ void chPool_forward_kernel_gen(float* inputTensor,
 	}
 	
 }
-
-__global__ void chPool_forward_kernel_spec(float* inputTensor,
-                            const float* weight,
-							float* outputTensor,
-							const int tensorHeight,
-							const int tensorWidth,
-							const int inCh,
-							const int outCh,
-							const int J_stride)
-{
-	//divide to multiple 32 to 32 
-	//we assume the whole area is working like this:
-	//each block working with 4X4 pixel area (512 threads)
-	//we have (height/4)*(width/4)*(out_channel/32) blocks, 
-	//each block dealing with 4x4 area for specified 64 output
-	//channel, this method will avoid write conflict between
-	//different blocks on the output channels 
-	uint8_t J_block;
-	uint8_t I_block;
-	uint8_t layer;
-	__shared__ float weightCache[4096];
-
-	uint16_t I_warp;
-	uint16_t J_warp;
-	uint16_t J_warpIt;
-	int tid = threadIdx.x;
-	int warpLane = tid - ((tid>>5)<<5);
-	int warpIdx = tid>>5;
-	J_block = blockIdx.x*J_stride;
-	I_block = blockIdx.y*heightA;
-	layer = blockIdx.z;
-	int16_t	J_end = J_block + J_stride;
-	const int16_t it2_end = J_stride/widthA;
-	if(J_end > tensorWidth) J_end = tensorWidth;
-	I_warp = I_block + warpIdx/widthA;
-	J_warp = J_block + warpIdx%widthA;
-	//if(tid == 511)
-	//	printf("I_warp is %d, warpLane is %d, warpIdx is %d\n", I_warp, warpLane, warpIdx);	
-
-	// variable "layer" gives the output offset and weight offset
-	int pixelOutOffset = (I_warp*tensorWidth + J_warp)*outCh + layer*outChPerBlock;
-
-	int pixelInOffset = (I_warp*tensorWidth + J_warp)*inCh;//inCh and outCh is global constant value but inIt changes according to iterations. 
-	int pixelInOffsetIt, pixelOutOffsetIt;
-
-	const int weightStep = warpSize*outCh;
-	int weightBias = layer*warpSize*outChPerBlock;
-	//every 32 input channel related to 32XoutCh step
-	//"in this iteration" every 32 output channel step related to 32*32 weight step 
-	float val, outVal=0, outVal11=0;
-	for(int16_t inIt = 0; inIt < inCh; inIt+=inChPerBlock){
-		weightCache[tid] = weight[weightBias + tid]; 
-		weightCache[tid + 512] = weight[weightBias + tid + 512]; 
-		weightCache[tid + 1024] = weight[weightBias + tid + 1024]; 
-		weightCache[tid + 1536] = weight[weightBias + tid + 1536]; 
-		weightBias += warpSize*outCh;
-		weightCache[tid + 2048] = weight[weightBias + tid]; 
-		weightCache[tid + 512 + 2048] = weight[weightBias + tid + 512]; 
-		weightCache[tid + 1024 + 2048] = weight[weightBias + tid + 1024]; 
-		weightCache[tid + 1536 + 2048] = weight[weightBias + tid + 1536];
-		pixelInOffsetIt = pixelInOffset;
-		pixelOutOffsetIt = pixelOutOffset;
-		J_warpIt = J_warp;
-		__syncthreads();
-
-		for(int it2 = 0; it2 <= it2_end; it2 ++){
-			if(J_warpIt < J_end){ 
-				val = inputTensor[pixelInOffsetIt+warpLane];
-				//0-31 in->0-32 out
-				for (int offset = 0; \
-						offset < warpSize; offset += 1) {
-					//offset<<5 means offset*32
-					outVal += weightCache[warpLane + (offset<<5)] * __shfl_sync(FULLMSK, val, warpLane + offset);
-
-					outVal11 += weightCache[warpLane + (offset<<5) + 1024] * __shfl_sync(FULLMSK, val, warpLane + offset);
-
-				}
-
-				val = inputTensor[pixelInOffsetIt+warpLane+warpSize];
-				for (int offset = 0; \
-						offset < warpSize; offset += 1) {
-					//offset<<5 means offset*32
-					outVal += weightCache[warpLane + 2048 + (offset<<5)] * __shfl_sync(FULLMSK, val, warpLane + offset);
-					outVal11 += weightCache[warpLane + 2048 + (offset<<5) + 1024] * __shfl_sync(FULLMSK, val, warpLane + offset);
-
-				}
-				outputTensor[pixelOutOffsetIt + warpLane] += outVal;	
-				outputTensor[pixelOutOffsetIt + warpLane + 32] += outVal11;	
-			}
-
-			outVal11 = 0;
-			outVal = 0;
-			pixelInOffsetIt += widthA*inCh; 
-			pixelOutOffsetIt += widthA*outCh; 
-			J_warpIt += widthA;
-			__syncthreads();
-		}
-			__syncthreads();
-		pixelInOffset += inChPerBlock;		
-		weightBias += weightStep;
-	}
-
-}
-
 
 
 static bool calBlocksize(const int inCh, const int outCh, 
