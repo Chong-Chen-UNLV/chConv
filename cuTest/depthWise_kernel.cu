@@ -16,10 +16,10 @@ __global__ void setZero(float* inputTensor, const int size){
 	if(id < size) inputTensor[id] = 0;
 }
 
-__global__ void depthWise_forward_kernel(float* inputTensor,
+//windowsize is fixed as 7
+__global__ void depthWise_forward_kernel_7(float* inputTensor,
                             const float* weight,
 							float* outputTensor,
-							const int weightWidth,
 							const int tensorHeight,
 							const int tensorWidth,
 							const int inCh,
@@ -27,13 +27,10 @@ __global__ void depthWise_forward_kernel(float* inputTensor,
 							const int J_stride)
                             
 {
-	//divide to multiple 32 to 32 
-	//we assume the whole area is working like this:
-	//each block working with 4X4 pixel area (512 threads)
-	//we have (height/4)*(width/4)*(out_channel/32) blocks, 
-	//each block dealing with 4x4 area for specified 64 output
-	//channel, this method will avoid write conflict between
-	//different blocks on the output channels 
+	//7X7 depth-wise forward kernel
+	//this is an yet-to-be optimize kernel dealing with 4x4 bolck
+	//and go from column 0 to column tensor-size-1
+
 	extern __shared__ volatile float weightCache[];
 	uint8_t J_block;
 	uint8_t I_block;
@@ -52,8 +49,6 @@ __global__ void depthWise_forward_kernel(float* inputTensor,
 	layer = blockIdx.z;
 	J_end = J_block + J_stride; 
 	if(J_end > tensorWidth) J_end = tensorWidth;
-	//there are two layer: input layer and output layer
-	//if there are 512 input and 512 output, l0=0:0, l8=0:64
 	
 	uint16_t inChBias = inChPerBlock*(layer/(outCh/outChPerBlock));	
 	uint16_t outChBias = outChPerBlock*(layer%(outCh/outChPerBlock));	
@@ -79,14 +74,14 @@ __global__ void depthWise_forward_kernel(float* inputTensor,
 	__syncthreads();
 	//I_warp and J_warp is the output location, I_input and J_input is the input location 	
 	if(I_warp < tensorHeight && J_warp < tensorWidth){
-		while(J_block < J_end){
+		while(J_warp < J_end){
 		
-		int16_t I_blockMin = I_block - windowSize < 0 ? 0 : I_block-windowSize;
-		int16_t J_blockMin =  J_block - windowSize < 0 ? 0 : J_block-windowSize;
-		int16_t neighborWidth = ((J_block + widthA + windowSize) > imageWidth ? imageWidth :
-				(J_block + widthA + windowSize)) - J_blockMin;
-		int16_t neighborHeight = ((I_block + heightA + windowSize) > imageHeight ? imageHeight:
-				(I_block + heightA + windowSize)) - I_blockMin;
+		int16_t I_blockMin = I_block - 3 < 0 ? 0 : I_block-3;
+		int16_t J_blockMin =  J_block - 3< 0 ? 0 : J_block-3;
+		int16_t neighborWidth = ((J_block + widthA + 3) > imageWidth ? imageWidth :
+				(J_block + widthA + 3)) - J_blockMin;
+		int16_t neighborHeight = ((I_block + heightA + 3) > imageHeight ? imageHeight:
+				(I_block + heightA + 3)) - I_blockMin;
 		//int16_t neighborSize = neighborWidth*neighborHeight;
 
 
@@ -94,8 +89,8 @@ __global__ void depthWise_forward_kernel(float* inputTensor,
 			
 		outval = inputTensor[pixelInOffset+warpLane];
 
-		for(int16_t mi = warpIdx/widthA; mi < neighborWidth; mi+=widthA){	
-			for(int16_t mj = warpIdx%widthA; mj < neighborHeight; mj+=widthA){	
+		for(int16_t mi = warpIdx/widthA; mi < itI; mi+=widthA){	
+			for(int16_t mj = warpIdx%widthA; mj < itJ; mj+=widthA){	
 				pixelInOffset = ((J_blockMin + mj)*tensorHeight + (I_blockMin + mi))*ch + chBias;	
 				shareMem[tid] = inputTensor[pixelInOffset + warpLane]; 
 				__syncthreads();
@@ -171,7 +166,7 @@ static bool calBlocksize(const int inCh, const int outCh,
 	}
 }
 
-void chPool_forward_C_interface(float* input_d,
+void depthWise_forward_C_interface(float* input_d,
 		const float* weight_d,
 		float* output_d,
 		const int width,
@@ -182,6 +177,7 @@ void chPool_forward_C_interface(float* input_d,
 	//define the number of blocks, closest to the number of SMs. 
 	//constant of channel number:
 
+	//only do 9X9, 11X11 or 13x13
 	int widthB, heightB, layer;
 	bool atomicFlag = calBlocksize(inCh, outCh, width, height, &widthB, &heightB, &layer);	
 	uint8_t J_stride = ceil(((float) width)/widthB);
@@ -191,11 +187,11 @@ void chPool_forward_C_interface(float* input_d,
 	const int zeroThreadSize = 1024;
 	int zeroBlockSize = ceil(((float) width*height*outCh)/zeroThreadSize);;
 	setZero<<<zeroBlockSize, zeroThreadSize>>>(output_d, width*height*outCh);
-	if(atomicFlag){	
+	if(){	
 
 		//printf("J_stride is %d, widthB is %d, heightB is %d, layer is %d\n", J_stride, widthB, heightB, layer);
 		//every kernel call will finish caclulation of all output channels related to 32 input channels. 
-		chPool_forward_kernel_gen<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh, J_stride);
+		chPool_forward_kernel_9<<<blocksize, threadSize>>>(input_d, weight_d, output_d, width, height, inCh, outCh, J_stride);
 		
 	} else {
 
